@@ -440,6 +440,22 @@
     }
   }
   </script>
-  <script type="module" src="app.js?v=19"></script>
+  <script>
+    // Fallback: avoid getting stuck on LOADING forever if module import fails.
+    window.addEventListener('error', () => {
+      const loader = document.getElementById('loader');
+      if (loader) loader.classList.add('hidden');
+      document.body.classList.remove('intro');
+    }, { once: true });
+
+    setTimeout(() => {
+      const loader = document.getElementById('loader');
+      if (loader && !loader.classList.contains('hidden')) {
+        loader.classList.add('hidden');
+        document.body.classList.remove('intro');
+      }
+    }, 7000);
+  </script>
+  <script type="module" src="app.js?v=20"></script>
 </body>
 </html>
