@@ -55,16 +55,12 @@ window.addEventListener('message', (e) => {
    PROJECT DATA
    ============================================================ */
 const PROJECTS = [
-  { name: 'T11', category: 'WEB DESIGN & DEVELOPMENT', year: '2026', color: '#1a1a2e' },
-  { name: 'Teletech', category: 'WEB DESIGN & DEVELOPMENT', year: '2025', color: '#0d0d2a' },
-  { name: 'Offlimits', category: 'WEB DESIGN, INTERACTION DESIGN', year: '2025', color: '#2d1b2e' },
-  { name: 'Hyper Dreams', category: 'WEB DESIGN, INTERACTION DESIGN', year: '2024', color: '#1b2838' },
-  { name: 'Voxnox', category: 'WEB DESIGN & DEVELOPMENT', year: '2024', color: '#0c0c1d' },
-  { name: 'Halflife AI', category: 'BRANDING, AI ART', year: '2024', color: '#1a1a1a' },
-  { name: 'Jinn Agency', category: 'BRANDING, WEB DEVELOPMENT', year: '2023', color: '#0a1628' },
-  { name: 'Echo Studios', category: 'WEB DESIGN & DEVELOPMENT', year: '2023', color: '#1c0a00' },
-  { name: 'Phantom', category: 'WEB DESIGN, DEVELOPMENT', year: '2023', color: '#12121f' },
-  { name: 'Drift', category: 'BRANDING, MOTION', year: '2022', color: '#1a0a2e' },
+  { slug: 'xiaohongshu', name: 'Xiaohongshu', category: 'PRODUCT DESIGN',              year: '2025', color: '#2d0a14', cover: 'assets/covers/shop-bag.avif' },
+  { slug: 'mokee',       name: 'Mokee',       category: 'BRANDING, WEB',               year: '2025', color: '#1a1a2e', cover: 'assets/covers/voicelive-2.avif' },
+  { slug: 'newtap',      name: 'NewTap',      category: 'PRODUCT DESIGN, INTERACTION', year: '2024', color: '#0c0c1d', cover: 'assets/covers/newtap.avif' },
+  { slug: 'douyin',      name: 'Douyin',      category: 'PRODUCT DESIGN',              year: '2024', color: '#0d0d2a', cover: 'assets/covers/dou-yin.avif' },
+  { slug: 'sia-tv',      name: 'Sia TV',      category: 'PRODUCT DESIGN, INTERACTION', year: '2024', color: '#1b2838', cover: 'assets/covers/sia-tv.avif' },
+  { slug: 'oppo',        name: 'OPPO',        category: 'WEB DESIGN & DEVELOPMENT',    year: '2023', color: '#1c0a00', cover: 'assets/covers/oppo-web.webp' },
 ];
 
 /* ============================================================
@@ -155,9 +151,9 @@ function createTileBgTexture(project, width, height) {
   ctx.fillRect(0, 0, width, height);
 
   // Tile border
-  ctx.strokeStyle = 'rgba(255,255,255,0.02)';
-  ctx.lineWidth = 0.3;
-  ctx.strokeRect(0.15, 0.15, width - 0.3, height - 0.3);
+  ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+  ctx.lineWidth = 0.7;
+  ctx.strokeRect(0.35, 0.35, width - 0.7, height - 0.7);
 
   // Info text positions (matching image placement)
   const imgH = height * 0.60;
@@ -167,7 +163,7 @@ function createTileBgTexture(project, width, height) {
   // Top info row
   const topY = 24;
   ctx.textBaseline = 'top';
-  ctx.fillStyle = 'rgba(255,255,255,0.05)';
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
   ctx.font = `300 12px "Inter", sans-serif`;
   ctx.textAlign = 'left';
   ctx.fillText('++', pad, topY);
@@ -178,7 +174,7 @@ function createTileBgTexture(project, width, height) {
   // Bottom info row
   const bottomY = height - 24;
   ctx.textBaseline = 'bottom';
-  ctx.fillStyle = 'rgba(255,255,255,0.05)';
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
   ctx.font = `300 12px "Inter", sans-serif`;
   ctx.textAlign = 'left';
   ctx.fillText(project.name, pad, bottomY);
@@ -188,7 +184,20 @@ function createTileBgTexture(project, width, height) {
   const texture = new THREE.CanvasTexture(canvas);
   texture.minFilter = THREE.LinearFilter;
   texture.magFilter = THREE.LinearFilter;
+  if ('SRGBColorSpace' in THREE) texture.colorSpace = THREE.SRGBColorSpace;
   return texture;
+}
+
+// Shared cache so multiple tiles of the same project reuse one <img>.
+const COVER_IMG_CACHE = new Map();
+function loadCover(src) {
+  if (!src) return null;
+  if (COVER_IMG_CACHE.has(src)) return COVER_IMG_CACHE.get(src);
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.src = src;
+  COVER_IMG_CACHE.set(src, img);
+  return img;
 }
 
 function createTileImgTexture(project, width, height) {
@@ -201,21 +210,47 @@ function createTileImgTexture(project, width, height) {
 
   const radius = 2;
 
-  // Rounded image with project color
-  roundRect(ctx, 0, 0, width, height, radius);
-  ctx.fillStyle = project.color;
-  ctx.fill();
+  function drawFallback() {
+    roundRect(ctx, 0, 0, width, height, radius);
+    ctx.fillStyle = project.color;
+    ctx.fill();
+    ctx.fillStyle = 'rgba(240, 240, 240, 0.08)';
+    ctx.font = `bold ${Math.floor(width * 0.15)}px "Inter", sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(project.name.toUpperCase(), width / 2, height / 2);
+  }
 
-  // Large project name
-  ctx.fillStyle = 'rgba(240, 240, 240, 0.08)';
-  ctx.font = `bold ${Math.floor(width * 0.15)}px "Inter", sans-serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(project.name.toUpperCase(), width / 2, height / 2);
+  function drawCover(img) {
+    ctx.save();
+    roundRect(ctx, 0, 0, width, height, radius);
+    ctx.clip();
+    // cover-fit
+    const ir = img.width / img.height;
+    const tr = width / height;
+    let dw, dh, dx, dy;
+    if (ir > tr) { dh = height; dw = dh * ir; dx = (width - dw) / 2; dy = 0; }
+    else         { dw = width;  dh = dw / ir; dx = 0; dy = (height - dh) / 2; }
+    ctx.drawImage(img, dx, dy, dw, dh);
+    ctx.restore();
+  }
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.minFilter = THREE.LinearFilter;
   texture.magFilter = THREE.LinearFilter;
+  if ('SRGBColorSpace' in THREE) texture.colorSpace = THREE.SRGBColorSpace;
+
+  const img = loadCover(project.cover);
+  if (img && img.complete && img.naturalWidth > 0) {
+    drawCover(img);
+  } else {
+    drawFallback();
+    if (img) {
+      const onLoad = () => { drawCover(img); texture.needsUpdate = true; };
+      if (img.complete && img.naturalWidth > 0) onLoad();
+      else img.addEventListener('load', onLoad, { once: true });
+    }
+  }
   return texture;
 }
 
@@ -263,7 +298,8 @@ class InfiniteGrid {
         const bgTex = createTileBgTexture(proj, 480, 300);
         const bgMat = new THREE.MeshBasicMaterial({ map: bgTex });
         const bgMesh = new THREE.Mesh(bgGeometry, bgMat);
-        bgMesh.userData = { col: c, row: r };
+        const slug = (proj.slug || proj.name || '').toString().toLowerCase().replace(/\s+/g, '-');
+        bgMesh.userData = { col: c, row: r, project: proj, slug };
 
         // Image child mesh
         const imgTex = createTileImgTexture(proj, 240, 180);
@@ -569,6 +605,7 @@ class App {
 
     this.canvas.addEventListener('pointerdown', (e) => {
       this._pressStart = { x: e.clientX, y: e.clientY };
+      this._pressMoved = false;
     });
     this.canvas.addEventListener('pointermove', (e) => {
       // Only trigger zoom when actually dragging (movement detected)
@@ -576,16 +613,29 @@ class App {
         const dx = e.clientX - this._pressStart.x;
         const dy = e.clientY - this._pressStart.y;
         if (dx * dx + dy * dy > 16) {
+          this._pressMoved = true;
           this.targetCameraZ = CONFIG.camera.z + CONFIG.camera.zoomDelta;
         }
       }
     });
-    this.canvas.addEventListener('pointerup', () => {
+    this.canvas.addEventListener('pointerup', (e) => {
+      // Tap (no drag) on a hovered tile => open detail page
+      if (this._pressStart && !this._pressMoved && this.hoveredTile) {
+        const slug = this.hoveredTile.userData.slug;
+        if (slug) {
+          document.body.classList.add('outro');
+          setTimeout(() => {
+            window.location.href = `project.html?id=${encodeURIComponent(slug)}`;
+          }, 1000);
+        }
+      }
       this._pressStart = null;
+      this._pressMoved = false;
       this.targetCameraZ = CONFIG.camera.z;
     });
     this.canvas.addEventListener('pointerleave', () => {
       this._pressStart = null;
+      this._pressMoved = false;
       this.targetCameraZ = CONFIG.camera.z;
     });
   }

@@ -1,1 +1,19 @@
 .vercel
+
+# macOS
+.DS_Store
+
+# Logs
+*.log
+
+# Node / tools
+node_modules/
+
+# 编辑器
+.vscode/
+.idea/
+
+# 本地备份
+*.bak
+*.html.bak
+
