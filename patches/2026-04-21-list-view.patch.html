@@ -1,0 +1,321 @@
+<!--
+================================================================================
+  PATCH: 2026-04-21 — LIST view mode (replicates marioroudil.com list layout)
+  Target file: index.html
+  Scope of changes (this single session):
+    1. Add LIST view (黑底白字 / hover 反相高亮 / 居中浮动预览图)
+    2. Add GRID/LIST toggle UI in TOP BAR (absolute centered)
+    3. Add 800ms enter/exit transitions for both modes
+    4. Unify all intro/mode-switch transitions to 800ms
+    5. Keep top-blur visible in list mode; hide canvas + bottom-gradient-blur
+    6. Bump asset cache buster: app.js?v=16 → app.js?v=20
+
+  HOW TO APPLY TO ANOTHER VERSION OF THIS PROJECT:
+    A. Copy block [1] (CSS) into the <style> section, preferably right BEFORE
+       the "/* ===== LOADING ===== */" rule.
+    B. Modify existing intro/transition rules per block [2] (find/replace).
+    C. Insert block [3] (HTML: view-toggle) inside <header class="top-bar">
+       between .top-bar__brand and .top-bar__meta.
+    D. Insert block [4] (HTML: list-view section) right BEFORE the
+       <script type="importmap"> tag.
+    E. Append block [5] (inline <script>) right AFTER the module script,
+       before </body>.
+    F. Bump the module script cache buster (e.g. app.js?v=20).
+================================================================================
+-->
+
+
+<!-- ============================================================================
+  [1] CSS — paste into <style>, before "/* ===== LOADING ===== */"
+============================================================================ -->
+<style>
+/* ===== LIST VIEW (replicates marioroudil.com list mode, dark theme) ===== */
+.list-view {
+  position: fixed;
+  inset: 0;
+  z-index: 8;
+  background: #000000;
+  color: #ffffff;
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  padding: 120px 40px 140px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 800ms cubic-bezier(0.16, 1, 0.3, 1),
+              visibility 0s linear 800ms;
+}
+body.list-mode .list-view {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 800ms cubic-bezier(0.16, 1, 0.3, 1),
+              visibility 0s linear 0s;
+}
+.list-view__inner {
+  max-width: 1800px;
+  margin: 0 auto;
+  position: relative;
+}
+.list-view__row {
+  display: grid;
+  grid-template-columns: 56px minmax(240px, 1.4fr) 2.4fr minmax(240px, 1.4fr) 110px;
+  align-items: baseline;
+  gap: 24px;
+  padding: 6px 0;
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+  line-height: 1.25;
+  /* Enter/exit base: rows start translated down + transparent */
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 800ms cubic-bezier(0.16, 1, 0.3, 1),
+              transform 800ms cubic-bezier(0.16, 1, 0.3, 1);
+  transition-delay: 0ms;
+}
+body.list-mode .list-view__row {
+  opacity: 1;
+  transform: translateY(0);
+  /* Stagger via --i (set inline by JS); keep total within 800ms window */
+  transition-delay: calc(var(--i, 0) * 14ms);
+}
+.list-view__row > span {
+  transition: background-color 0.18s ease, color 0.18s ease;
+  padding: 2px 6px;
+  margin: -2px -6px;
+  border-radius: 1px;
+}
+/* Hovered row: invert each text cell to a white block with black text */
+.list-view__row:hover .list-view__index,
+.list-view__row:hover .list-view__title,
+.list-view__row:hover .list-view__sub,
+.list-view__row:hover .list-view__date {
+  background-color: #ffffff;
+  color: #000000;
+}
+.list-view__index { font-variant-numeric: tabular-nums; font-weight: 400; }
+.list-view__title { font-weight: 500; justify-self: start; }
+.list-view__spacer { /* empty middle column reserved for floating preview */ }
+.list-view__sub { text-align: right; font-weight: 400; justify-self: end; }
+.list-view__date { text-align: right; font-variant-numeric: tabular-nums; font-weight: 400; justify-self: end; }
+/* Floating preview image follows hovered row, sits in the middle column */
+.list-view__preview {
+  position: absolute;
+  pointer-events: none;
+  width: 380px;
+  height: 230px;
+  object-fit: cover;
+  opacity: 0;
+  transform: translate(-50%, -50%);
+  transition: opacity 260ms ease, top 320ms cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 2;
+  background: #111;
+}
+.list-view__preview.show { opacity: 1; }
+
+/* === Mode switch transitions for grid layer === */
+#canvas {
+  transition: filter 800ms cubic-bezier(0.16, 1, 0.3, 1),
+              opacity 800ms cubic-bezier(0.16, 1, 0.3, 1),
+              transform 800ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.bottom-gradient-blur {
+  transition: transform 800ms cubic-bezier(0.16, 1, 0.3, 1),
+              opacity 800ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+body.list-mode #canvas {
+  opacity: 0;
+  filter: blur(48px);
+  transform: scale(1.04);
+  pointer-events: none;
+}
+body.list-mode .bottom-gradient-blur {
+  opacity: 0;
+  transform: translateY(120px);
+  pointer-events: none;
+}
+
+/* ===== VIEW TOGGLE (centered in top bar) ===== */
+.view-toggle {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1;
+  display: flex; align-items: center; gap: 4px;
+  font-family: 'Inter', sans-serif;
+  font-size: 11px; letter-spacing: 0.12em;
+  text-transform: uppercase;
+  pointer-events: auto;
+}
+.view-toggle button {
+  font-family: inherit; font-size: inherit;
+  letter-spacing: inherit;
+  background: none; border: none;
+  color: var(--fg-dim); cursor: pointer;
+  padding: 6px 8px; transition: color 0.3s;
+}
+.view-toggle button:hover { color: var(--fg); }
+.view-toggle button.active { color: var(--fg); }
+.view-toggle span { color: var(--fg-muted); padding: 0 2px; }
+</style>
+
+
+<!-- ============================================================================
+  [2] CSS PATCHES — find these existing rules, replace with the new versions
+
+  (A) Intro overlay transition: change 1440ms → 800ms
+      OLD: transition: opacity 1440ms cubic-bezier(0.16, 1, 0.3, 1);
+      NEW: transition: opacity 800ms cubic-bezier(0.16, 1, 0.3, 1);
+
+  (B) Remove .view-toggle from intro opacity rule
+      OLD:
+        body.intro .top-bar,
+        body.intro .view-toggle { opacity: 0; }
+      NEW:
+        body.intro .top-bar { opacity: 0; }
+
+  (C) Replace canvas/top-bar/top-blur/bottom-gradient-blur/bottom-nav transitions
+      DELETE these blocks:
+        #canvas { transition: filter 1440ms ...; transition-delay: 0ms; }
+        .top-bar, .view-toggle { transition: opacity 1080ms ...; transition-delay: 540ms; }
+        .top-blur { transition: transform 1080ms ... 540ms; }
+        .bottom-gradient-blur { transition: transform 1080ms ... 540ms; }
+        .bottom-nav { transition: transform 1080ms cubic-bezier(0.34,1.15,0.64,1); transition-delay: 360ms; }
+
+      REPLACE WITH:
+        .top-bar { transition: opacity 800ms cubic-bezier(0.16, 1, 0.3, 1); }
+        .top-blur { transition: transform 800ms cubic-bezier(0.16, 1, 0.3, 1); }
+        .bottom-nav { transition: transform 800ms cubic-bezier(0.34, 1.15, 0.64, 1); }
+      NOTE: #canvas + .bottom-gradient-blur transitions are now handled in
+            block [1] (mode-switch section). Do NOT redefine them here.
+============================================================================ -->
+
+
+<!-- ============================================================================
+  [3] HTML — paste inside <header class="top-bar"> between brand and meta
+============================================================================ -->
+<div class="view-toggle">
+  <button class="active" data-view="grid">GRID</button>
+  <span>/</span>
+  <button data-view="list">LIST</button>
+</div>
+
+
+<!-- ============================================================================
+  [4] HTML — paste right BEFORE <script type="importmap">
+============================================================================ -->
+<section class="list-view" aria-hidden="true">
+  <div class="list-view__inner" id="listViewInner">
+    <img class="list-view__preview" id="listViewPreview" alt="" />
+  </div>
+</section>
+
+
+<!-- ============================================================================
+  [5] JS — paste right AFTER the existing <script type="module" ...></script>,
+      before </body>
+============================================================================ -->
+<script>
+/* ===== LIST VIEW: populate + GRID/LIST toggle + hover preview ===== */
+(function () {
+  // Project rows (replace / extend with your own data as needed)
+  const PROJECT_ROWS = [
+    { title: "RIEN D'EXCEPTIONNEL", sub: 'ART NO', date: '12.11.2025' },
+    { title: 'ALLER-RETOUR', sub: 'SWING FEAT EDGE', date: '22.10.2025' },
+    { title: 'BANG BANG BANG', sub: 'NAZA X GRADUR X KEBLACK X DADI', date: '10.10.2025' },
+    { title: 'TERREURGRÜNT', sub: 'PTITE SOEUR', date: '30.09.2025' },
+    { title: 'ROUGE', sub: 'SIM01 FT GEMROZ', date: '23.04.2025' },
+    { title: 'TRAILER ANNONCE — 23 MEGAPARTY 26/05', sub: 'MARIO ROUDIL', date: '18.03.2025' },
+    { title: 'COMME LA BÊTE.', sub: 'ADVM', date: '29.01.2025' },
+    { title: 'RASKA VEND TON SKEUD 3', sub: 'RASKA', date: '24.11.2024' },
+    { title: 'KAYFABE / SOEUR LOCATION', sub: 'PTITE SOEUR & GEMROZ', date: '21.11.2024' },
+    { title: 'NOTRE DAME', sub: 'TIAKOLA X GAZO X ANGELE', date: '29.06.2024' },
+    { title: 'COMBAT INTERNATIONALE DE BOXE ANGLAISE', sub: 'GAZO X BAKARY', date: '16.05.2024' },
+    { title: 'TÉNÉBREUX', sub: 'DI-MEH', date: '10.05.2024' },
+    { title: 'PARFUM ROCHAS AUDACE', sub: 'CAMILLE MONTAGNAC', date: '23.04.2024' },
+    { title: 'CELIO X UFC', sub: 'CELIO', date: '17.03.2024' },
+    { title: 'BABY', sub: 'PIERRE PLEURE', date: '14.02.2024' },
+    { title: 'SHAKE (UNRELEASED)', sub: 'SLIMKA', date: '20.12.2023' },
+    { title: 'SLOW DOWN', sub: 'SLIMKA', date: '20.12.2023' },
+    { title: 'JAMAIS COMME LES AUTRES', sub: 'SLIMKA', date: '30.11.2023' },
+    { title: "L'ÉCHAPÉE — MAKING OF", sub: 'DOMINGO', date: '20.10.2023' },
+    { title: 'CHAINE OU LAINE', sub: "RY'S", date: '01.10.2023' },
+    { title: 'DANS LA ZONE', sub: 'INOXTAG', date: '30.12.2022' },
+    { title: 'COMME AVANT', sub: "L'ENFANT", date: '25.11.2022' },
+    { title: 'LE DESSERT', sub: 'NIKON FILM FESTIVAL', date: '19.11.2022' },
+    { title: 'PLUS PEUR', sub: 'PIERRE PLEURE', date: '13.09.2022' },
+    { title: 'GARE PART DIEU', sub: 'RICHI', date: '08.08.2022' },
+    { title: 'CLASSER MES IDÉES', sub: 'J9UEVE', date: '04.07.2022' },
+    { title: 'LE JOUR SE LÈVE', sub: "L'ENFANT", date: '19.05.2022' },
+    { title: 'VIOLETTE & CITRONELLE', sub: 'ALKPOTE', date: '05.05.2022' },
+    { title: 'SMOKE !', sub: "RY'S", date: '22.12.2021' },
+    { title: 'CIEL ÉTEINT', sub: 'RICHI', date: '03.10.2021' },
+    { title: 'FREESTYLE RÈGLEMENT', sub: 'LUV RESVAL', date: '08.05.2021' },
+  ];
+
+  const inner = document.getElementById('listViewInner');
+  const preview = document.getElementById('listViewPreview');
+  const listSection = document.querySelector('.list-view');
+
+  // Build rows
+  const frag = document.createDocumentFragment();
+  PROJECT_ROWS.forEach((p, i) => {
+    const a = document.createElement('a');
+    a.className = 'list-view__row';
+    a.href = '#';
+    a.style.setProperty('--i', i);
+    const idx = String(i).padStart(2, '0');
+    const seed = encodeURIComponent(p.title.toLowerCase().replace(/\s+/g, '-')).slice(0, 24);
+    const imgUrl = `https://picsum.photos/seed/${seed}/720/440`;
+    a.dataset.preview = imgUrl;
+    a.innerHTML =
+      `<span class="list-view__index">${idx}</span>` +
+      `<span class="list-view__title"></span>` +
+      `<span class="list-view__spacer"></span>` +
+      `<span class="list-view__sub"></span>` +
+      `<span class="list-view__date"></span>`;
+    a.children[1].textContent = p.title;
+    a.children[3].textContent = p.sub;
+    a.children[4].textContent = p.date;
+    a.addEventListener('click', (e) => e.preventDefault());
+    a.addEventListener('mouseenter', () => {
+      const rect = a.getBoundingClientRect();
+      const innerRect = inner.getBoundingClientRect();
+      const cy = rect.top - innerRect.top + rect.height / 2;
+      const cx = innerRect.width / 2;
+      preview.style.left = cx + 'px';
+      preview.style.top = cy + 'px';
+      if (preview.src !== imgUrl) preview.src = imgUrl;
+      preview.classList.add('show');
+    });
+    a.addEventListener('mouseleave', () => {
+      preview.classList.remove('show');
+    });
+    frag.appendChild(a);
+  });
+  inner.insertBefore(frag, preview);
+
+  // Toggle wiring with proper enter/exit transitions
+  const buttons = document.querySelectorAll('.view-toggle button');
+  let switching = false;
+  function setMode(mode) {
+    if (switching) return;
+    const current = document.body.classList.contains('list-mode') ? 'list' : 'grid';
+    if (current === mode) return;
+    switching = true;
+    document.body.classList.toggle('list-mode', mode === 'list');
+    buttons.forEach((b) => b.classList.toggle('active', b.dataset.view === mode));
+    listSection.setAttribute('aria-hidden', mode === 'list' ? 'false' : 'true');
+    preview.classList.remove('show');
+    if (mode === 'list') listSection.scrollTop = 0;
+    setTimeout(() => { switching = false; }, 1300);
+  }
+  buttons.forEach((b) => {
+    b.addEventListener('click', () => setMode(b.dataset.view));
+  });
+})();
+</script>
